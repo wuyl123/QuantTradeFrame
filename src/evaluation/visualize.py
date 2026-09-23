@@ -1,4 +1,4 @@
-"""Plot closing price and trading volume from one stock CSV."""
+"""Plot closing price and trading volume (python -m src.evaluation.visualize)."""
 
 import argparse
 from pathlib import Path
@@ -10,7 +10,7 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 import numpy as np
 import pandas as pd
 
-from quantlibrary.paths import CHARTS_DIR, SAMPLE_DATA_DIR
+from src.utils.paths import CHARTS_DIR, SAMPLE_DATA_DIR
 
 
 DEFAULT_CSV = SAMPLE_DATA_DIR / "000001_daily_sample.csv"
@@ -231,12 +231,12 @@ def visualize_stock(
     return output_path
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", nargs="?", type=Path, default=DEFAULT_CSV, help="Stock CSV path")
     parser.add_argument("--save-only", action="store_true", help="Save PNG without opening a window")
     parser.add_argument("--output", type=Path, help="PNG path; defaults to outputs/charts/<CSV stem>.png")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         visualize_stock(args.csv, show=not args.save_only, output_path=args.output)
     except (OSError, ValueError, KeyError) as exc:

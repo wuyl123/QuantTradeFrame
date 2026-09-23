@@ -1,0 +1,18 @@
+# Only buy_and_hold is currently implemented.
+strategy: buy_and_hold
+
+# Paths in this file are relative to config/, not to the terminal directory.
+csv: ../data/samples/000001_daily_sample.csv
+interval: null
+market: null
+adjustment: null
+naive_timezone: null
+
+initial_cash: 100000.0
+shares: 100
+commission_rate: 0.001
+fixed_fee: 0.0
+slippage_bps: 0.0
+
+# null uses outputs/backtests/<CSV stem>_buy_hold/.
+output_dir: null

@@ -1,4 +1,4 @@
-"""Download A-share price bars using BaoStock (python -m quantlibrary.data.a_share)."""
+"""Download A-share price bars using BaoStock (python -m src.data.a_share)."""
 
 import argparse
 from datetime import date, datetime, timedelta
@@ -106,7 +106,7 @@ def get_a_share(
     return data.sort_values(time_column).reset_index(drop=True)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     yesterday = datetime.now(ZoneInfo("Asia/Shanghai")).date() - timedelta(days=1)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbol", default="000001")
@@ -115,7 +115,7 @@ def main() -> None:
     parser.add_argument("--interval", choices=INTERVALS, default="1d")
     parser.add_argument("--adjustment", choices=("raw", "qfq", "hfq"), default="qfq")
     parser.add_argument("--output", type=Path, help="Optional CSV path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     try:
         start = args.start or (date.fromisoformat(args.end) - timedelta(days=7)).isoformat()

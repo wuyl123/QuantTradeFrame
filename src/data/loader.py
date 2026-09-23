@@ -1,4 +1,4 @@
-"""Validate and normalize one stock CSV (python -m quantlibrary.data.loader)."""
+"""Validate and normalize one stock CSV (python -m src.data.loader)."""
 
 import argparse
 import csv
@@ -270,14 +270,14 @@ def load_stock_csv(
     )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Single-stock OHLCV CSV")
     parser.add_argument("--market", choices=MARKETS, help="Defaults to the input volume convention")
     parser.add_argument("--interval", choices=INTERVALS, help="Required for timestamps unless recorded in the CSV")
     parser.add_argument("--adjustment", help="Declare a known adjustment when the CSV does not record it")
     parser.add_argument("--naive-timezone", help="IANA timezone for timestamps without an explicit offset")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         stock = load_stock_csv(args.csv, market=args.market, interval=args.interval,
                                adjustment=args.adjustment, naive_timezone=args.naive_timezone)

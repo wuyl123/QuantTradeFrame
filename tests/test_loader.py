@@ -10,8 +10,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from quantlibrary.data.loader import DataValidationError, OHLCV_COLUMNS, load_stock_csv
-from quantlibrary.paths import RAW_DATA_DIR, SAMPLE_DATA_DIR
+from src.data.loader import DataValidationError, OHLCV_COLUMNS, load_stock_csv
+from src.utils.paths import RAW_DATA_DIR, SAMPLE_DATA_DIR
 
 
 class LoaderTests(unittest.TestCase):
@@ -210,7 +210,7 @@ class LoaderTests(unittest.TestCase):
 
     def test_cli_success_and_actionable_error(self):
         self.write()
-        command = [sys.executable, "-m", "quantlibrary.data.loader", str(self.csv_path)]
+        command = [sys.executable, "-m", "src.data.loader", str(self.csv_path)]
         failed = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(failed.returncode, 1)
         self.assertIn("Specify interval", failed.stderr)

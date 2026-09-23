@@ -4,3 +4,4 @@ pandas
 tzdata
 matplotlib
 numpy
+PyYAML

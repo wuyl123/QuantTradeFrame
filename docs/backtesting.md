@@ -1,6 +1,6 @@
 # Buy-and-hold accounting baseline
 
-`quantlibrary.backtesting.buy_and_hold` is the first executable backtest. It
+`src.backtest.engine` is the first executable backtest. It
 accepts the shared loader's `StockData` and simulates one fixed-size buy, then
 holds the position. It establishes cash, fee, position, and valuation accounting
 before general strategies are added.
@@ -10,9 +10,9 @@ before general strategies are added.
 From the project root, with the virtual environment active:
 
 ```powershell
-python -m quantlibrary.backtesting.buy_and_hold
-python -m quantlibrary.backtesting.buy_and_hold data/raw/000001_5m_2026-08.csv --interval 5m --cash 100000 --shares 100 --commission-rate 0.001
-python -m quantlibrary.backtesting.buy_and_hold --help
+python main.py backtest
+python main.py backtest data/raw/000001_5m_2026-08.csv --interval 5m --cash 100000 --shares 100 --commission-rate 0.001
+python main.py backtest --help
 python -m unittest discover -s tests -v
 ```
 

@@ -1,4 +1,4 @@
-"""Download US price bars using Alpaca (python -m quantlibrary.data.us_stock)."""
+"""Download US price bars using Alpaca (python -m src.data.us_stock)."""
 
 import argparse
 import os
@@ -79,7 +79,7 @@ def get_us_stock(
     return bars.df.reset_index().sort_values("timestamp").reset_index(drop=True)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     yesterday = datetime.now(ZoneInfo("America/New_York")).date() - timedelta(days=1)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbol", default="AAPL")
@@ -88,7 +88,7 @@ def main() -> None:
     parser.add_argument("--interval", choices=INTERVALS, default="1d")
     parser.add_argument("--adjustment", choices=("raw", "split", "dividend", "all"), default="raw")
     parser.add_argument("--output", type=Path, help="Optional CSV path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     try:
         start = args.start or (date.fromisoformat(args.end) - timedelta(days=7)).isoformat()

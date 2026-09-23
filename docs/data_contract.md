@@ -1,12 +1,12 @@
 # Normalized data
 
-`quantlibrary.data.loader.load_stock_csv()` reads one stock CSV and returns a
+`src.data.loader.load_stock_csv()` reads one stock CSV and returns a
 `StockData` object containing `bars` (a pandas DataFrame) and `metadata` (a frozen
 `StockMetadata` dataclass). It performs no downloads and never modifies the input.
 
 ```python
-from quantlibrary.data.loader import load_stock_csv
-from quantlibrary.paths import RAW_DATA_DIR, SAMPLE_DATA_DIR
+from src.data.loader import load_stock_csv
+from src.utils.paths import RAW_DATA_DIR, SAMPLE_DATA_DIR
 
 daily = load_stock_csv(SAMPLE_DATA_DIR / "000001_daily_sample.csv")
 intraday = load_stock_csv(RAW_DATA_DIR / "000001_5m_2026-08.csv", interval="5m")
@@ -105,7 +105,7 @@ errors retain their usual `OSError` types. The checks include:
 The CLI prints metadata and a preview without creating files:
 
 ```powershell
-python -m quantlibrary.data.loader data/raw/000001_5m_2026-08.csv --interval 5m
-python -m quantlibrary.data.loader --help
+python main.py validate data/raw/000001_5m_2026-08.csv --interval 5m
+python main.py validate --help
 python -m unittest discover -s tests -v
 ```

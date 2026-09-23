@@ -11,8 +11,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from quantlibrary.backtesting.buy_and_hold import BacktestConfig, run_buy_and_hold
-from quantlibrary.data.loader import load_stock_csv
+from src.backtest.engine import BacktestConfig, run_buy_and_hold
+from src.data.loader import load_stock_csv
 
 
 class BuyAndHoldTests(unittest.TestCase):
@@ -179,7 +179,7 @@ class BuyAndHoldTests(unittest.TestCase):
     def test_cli_runs_and_validation_errors_are_actionable(self):
         self.load()
         folder = self.root / "cli"
-        command = [sys.executable, "-m", "quantlibrary.backtesting.buy_and_hold", str(self.csv_path),
+        command = [sys.executable, "-m", "src.backtest.engine", str(self.csv_path),
                    "--cash", "1000", "--shares", "10", "--commission-rate", "0.01", "--output-dir", str(folder)]
         result = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)

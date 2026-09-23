@@ -15,13 +15,13 @@ $env:APCA_API_KEY_ID = "YOUR_API_KEY"
 $env:APCA_API_SECRET_KEY = "YOUR_SECRET_KEY"
 
 # Apple daily bars, with both dates included.
-.\.venv\Scripts\python.exe -m quantlibrary.data.us_stock --symbol AAPL --start 2024-01-02 --end 2024-01-31 --interval 1d --output data/raw/AAPL_1d_2024-01.csv
+.\.venv\Scripts\python.exe main.py download-us --symbol AAPL --start 2024-01-02 --end 2024-01-31 --interval 1d --output data/raw/AAPL_1d_2024-01.csv
 
 # One-minute bars for a historical trading day.
-.\.venv\Scripts\python.exe -m quantlibrary.data.us_stock --symbol AAPL --start 2024-01-03 --end 2024-01-03 --interval 1m --output data/raw/AAPL_1m_2024-01-03.csv
+.\.venv\Scripts\python.exe main.py download-us --symbol AAPL --start 2024-01-03 --end 2024-01-03 --interval 1m --output data/raw/AAPL_1m_2024-01-03.csv
 
 # Hourly bars; defaults to the recent week through yesterday.
-.\.venv\Scripts\python.exe -m quantlibrary.data.us_stock --symbol MSFT --interval 1h
+.\.venv\Scripts\python.exe main.py download-us --symbol MSFT --interval 1h
 ```
 
 The example explicitly selects the consolidated **SIP** feed. Free historical
@@ -47,14 +47,14 @@ and logs out after reading the result; you do not need a personal API key.
 
 ```powershell
 # Daily bars for August 2026, with both dates included.
-.\.venv\Scripts\python.exe -m quantlibrary.data.a_share --symbol 000001 --start 2026-08-01 --end 2026-08-31 --interval 1d --output data/raw/000001_1d_2026-08.csv
+.\.venv\Scripts\python.exe main.py download-a-share --symbol 000001 --start 2026-08-01 --end 2026-08-31 --interval 1d --output data/raw/000001_1d_2026-08.csv
 
 # Five-minute and hourly bars; default dates follow the current date.
-.\.venv\Scripts\python.exe -m quantlibrary.data.a_share --symbol 600519 --interval 5m --output data/raw/600519_5m.csv
-.\.venv\Scripts\python.exe -m quantlibrary.data.a_share --symbol 600519 --interval 1h
+.\.venv\Scripts\python.exe main.py download-a-share --symbol 600519 --interval 5m --output data/raw/600519_5m.csv
+.\.venv\Scripts\python.exe main.py download-a-share --symbol 600519 --interval 1h
 
 # Forward-adjusted daily prices.
-.\.venv\Scripts\python.exe -m quantlibrary.data.a_share --symbol 000001 --interval 1d --adjustment qfq
+.\.venv\Scripts\python.exe main.py download-a-share --symbol 000001 --interval 1d --adjustment qfq
 ```
 
 Returned DataFrames and CSVs have English columns:
@@ -75,7 +75,7 @@ Returned DataFrames and CSVs have English columns:
 | `adjustment` | Requested setting: `raw`, `qfq`, or `hfq` |
 
 BaoStock reports volume in shares. The script divides it by 100 to keep the
-existing `volume_lots` convention used by `quantlibrary.visualization.stock`; fractional lots are
+existing `volume_lots` convention used by `src.evaluation.visualize`; fractional lots are
 preserved. Percentage values are already percentages: `1.76` means `1.76%`.
 Missing numeric values remain missing rather than becoming zero. Daily rows
 for suspended stocks are retained and identified by `trading_status`.
@@ -103,7 +103,7 @@ The existing August download contains five-minute bars and is now named
 separate file. To plot the existing five-minute data:
 
 ```powershell
-python -m quantlibrary.visualization.stock data/raw/000001_5m_2026-08.csv
+python main.py plot data/raw/000001_5m_2026-08.csv
 ```
 
 ## Provider documentation

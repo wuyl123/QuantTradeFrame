@@ -1,9 +1,8 @@
-"""Run a single-stock accounting baseline (python -m quantlibrary.backtesting.buy_and_hold)."""
+"""Run a single-stock buy-and-hold backtest (python main.py backtest)."""
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, fields
 from decimal import Decimal
-import json
 import math
 from numbers import Integral, Real
 from pathlib import Path
@@ -11,8 +10,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from quantlibrary.data.loader import INTERVALS, MARKETS, OHLCV_COLUMNS, StockData, StockMetadata, load_stock_csv
-from quantlibrary.paths import BACKTEST_RESULTS_DIR, SAMPLE_DATA_DIR
+from src.backtest.accounting import BacktestResult, as_float, mark_to_market
+from src.backtest.costs import buy_costs
+from src.data.loader import INTERVALS, MARKETS, OHLCV_COLUMNS, StockData, load_stock_csv
+from src.utils.config import load_strategy_config
+from src.utils.paths import BACKTEST_RESULTS_DIR, CONFIG_DIR
 
 
 @dataclass(frozen=True)
@@ -36,47 +38,6 @@ class BacktestConfig:
         if isinstance(self.shares, bool) or not isinstance(self.shares, Integral) or self.shares <= 0:
             raise ValueError("shares must be a positive integer")
         object.__setattr__(self, "shares", int(self.shares))
-
-
-@dataclass
-class BacktestResult:
-    """Bar labels in these records retain the loader's timestamp conventions."""
-
-    config: BacktestConfig
-    metadata: StockMetadata
-    equity_curve: pd.DataFrame
-    orders: pd.DataFrame
-    fills: pd.DataFrame
-    summary: dict
-
-    def save(self, output_dir: str | Path) -> Path:
-        """Write a reproducible record; replace these four files on repeat runs."""
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        report = {
-            "strategy": "buy_and_hold",
-            "config": asdict(self.config),
-            "metadata": asdict(self.metadata),
-            "summary": self.summary,
-            "assumptions": {
-                "entry": "One fixed-size buy submitted after the first bar; next eligible bar's open",
-                "eligibility": "Completed bar has positive volume and trading_status=1 when provided",
-                "liquidity": "Full fill only; no volume participation, queue, or intrabar liquidity model",
-                "slippage": "Buy price = open * (1 + slippage_bps / 10000); no OHLC clipping",
-                "fees": "Notional * commission_rate + fixed_fee per fill; no minor-unit rounding",
-                "end_position": "Held at final close; no forced sale or hypothetical exit fee",
-                "timestamps": "UTC bar labels plus open/close phase, not exact execution instants",
-                "prices": "Input adjustment convention; no separate dividends or corporate actions",
-                "market_rules": "No venue-specific lot sizes, taxes, price limits, or settlement model",
-            },
-        }
-        # Serialize first so invalid report values cannot truncate an existing report.
-        report_json = json.dumps(report, indent=2, allow_nan=False) + "\n"
-        self.equity_curve.to_csv(output_dir / "equity.csv", encoding="utf-8-sig")
-        self.orders.to_csv(output_dir / "orders.csv", index=False, encoding="utf-8-sig")
-        self.fills.to_csv(output_dir / "fills.csv", index=False, encoding="utf-8-sig")
-        (output_dir / "summary.json").write_text(report_json, encoding="utf-8")
-        return output_dir
 
 
 FILL_COLUMNS = (
@@ -110,13 +71,6 @@ def _validate_stock(stock: StockData) -> pd.Series:
     return eligible
 
 
-def _number(value: Decimal) -> float:
-    result = float(value)
-    if not math.isfinite(result):
-        raise ValueError("Backtest values exceed the supported numeric range")
-    return result
-
-
 def run_buy_and_hold(stock: StockData, config: BacktestConfig | None = None) -> BacktestResult:
     """Submit once at the first close, buy at a later open, and mark each close.
 
@@ -135,7 +89,7 @@ def run_buy_and_hold(stock: StockData, config: BacktestConfig | None = None) -> 
     cash = initial_cash
     commission_rate = Decimal(str(config.commission_rate))
     fixed_fee = Decimal(str(config.fixed_fee))
-    slippage_rate = Decimal(str(config.slippage_bps)) / Decimal(10_000)
+    slippage_bps = Decimal(str(config.slippage_bps))
     shares = 0
     fees = Decimal(0)
     slippage_cost = Decimal(0)
@@ -153,11 +107,11 @@ def run_buy_and_hold(stock: StockData, config: BacktestConfig | None = None) -> 
         # The first bar supplies the decision point; it cannot fill its own order.
         if bar_number > 0 and order["status"] == "pending" and eligible.iloc[bar_number]:
             reference = Decimal(str(bar["open"]))
-            price = reference * (1 + slippage_rate)
-            notional = price * config.shares
-            commission = notional * commission_rate + fixed_fee
+            price, notional, commission = buy_costs(
+                reference, config.shares, commission_rate, fixed_fee, slippage_bps,
+            )
             debit = notional + commission
-            _number(debit)
+            as_float(debit)
             order["resolved_bar"] = timestamp
             order["resolved_phase"] = "open"
             if debit > cash:
@@ -173,22 +127,14 @@ def run_buy_and_hold(stock: StockData, config: BacktestConfig | None = None) -> 
                 fills.append({
                     "order_id": 1, "symbol": stock.metadata.symbol, "side": "buy",
                     "bar_timestamp": timestamp, "phase": "open", "shares": shares,
-                    "reference_open": _number(reference), "price": _number(price),
-                    "notional": _number(notional), "commission": _number(commission),
-                    "slippage_cost": _number(slippage_cost), "cash_after": _number(cash),
+                    "reference_open": as_float(reference), "price": as_float(price),
+                    "notional": as_float(notional), "commission": as_float(commission),
+                    "slippage_cost": as_float(slippage_cost), "cash_after": as_float(cash),
                 })
-        closing_price = Decimal(str(bar["close"]))
-        position_value = shares * closing_price
-        equity = cash + position_value
-        peak_equity = max(peak_equity, equity)
-        records.append({
-            "bar_timestamp": timestamp, "phase": "close", "cash": _number(cash),
-            "shares": shares, "close": _number(closing_price),
-            "position_value": _number(position_value), "equity": _number(equity),
-            "fees_paid": _number(fees), "net_pnl": _number(equity - initial_cash),
-            "return_pct": _number((equity / initial_cash - 1) * 100),
-            "drawdown_pct": _number((peak_equity - equity) / peak_equity * 100),
-        })
+        record, peak_equity = mark_to_market(
+            timestamp, Decimal(str(bar["close"])), cash, shares, initial_cash, fees, peak_equity,
+        )
+        records.append(record)
     if order["status"] == "pending":
         order.update(status="expired", resolved_bar=stock.bars.index[-1],
                      resolved_phase="close", reason="no_eligible_execution_bar")
@@ -199,13 +145,13 @@ def run_buy_and_hold(stock: StockData, config: BacktestConfig | None = None) -> 
         "start_bar": stock.bars.index[0].isoformat(),
         "end_bar": stock.bars.index[-1].isoformat(),
         "initial_cash": config.initial_cash,
-        "final_cash": _number(cash), "final_shares": shares,
-        "final_position_value": _number(position_value), "final_equity": _number(equity),
-        "net_pnl": _number(equity - initial_cash),
-        "total_return_pct": _number((equity / initial_cash - 1) * 100),
+        "final_cash": as_float(cash), "final_shares": shares,
+        "final_position_value": records[-1]["position_value"], "final_equity": records[-1]["equity"],
+        "net_pnl": records[-1]["net_pnl"],
+        "total_return_pct": records[-1]["return_pct"],
         "max_drawdown_pct": float(curve["drawdown_pct"].max()),
-        "total_fees": _number(fees), "total_slippage_cost": _number(slippage_cost),
-        "position_cost_including_fees": _number(cost_basis),
+        "total_fees": as_float(fees), "total_slippage_cost": as_float(slippage_cost),
+        "position_cost_including_fees": as_float(cost_basis),
         "filled_orders": int(order["status"] == "filled"),
         "rejected_orders": int(order["status"] == "rejected"),
         "expired_orders": int(order["status"] == "expired"),
@@ -214,26 +160,37 @@ def run_buy_and_hold(stock: StockData, config: BacktestConfig | None = None) -> 
                           pd.DataFrame(fills, columns=FILL_COLUMNS), summary)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("csv", nargs="?", type=Path, default=SAMPLE_DATA_DIR / "000001_daily_sample.csv")
+    parser.add_argument("csv", nargs="?", type=Path, help="Override the CSV in the strategy config")
+    parser.add_argument("--config", type=Path, default=CONFIG_DIR / "strategy.yaml")
     parser.add_argument("--interval", choices=INTERVALS)
     parser.add_argument("--market", choices=MARKETS)
     parser.add_argument("--adjustment", help="Declare the existing input price adjustment")
     parser.add_argument("--naive-timezone", help="IANA timezone for input timestamps without offsets")
-    parser.add_argument("--cash", type=float, default=100_000, help="Starting cash in the stock currency")
-    parser.add_argument("--shares", type=int, default=100, help="Fixed whole-share buy quantity")
-    parser.add_argument("--commission-rate", type=float, default=0.001, help="Fraction of notional; 0.001 = 0.1%%")
-    parser.add_argument("--fixed-fee", type=float, default=0, help="Additional fee per fill")
-    parser.add_argument("--slippage-bps", type=float, default=0, help="Buy-price markup; 10 bps = 0.1%%")
+    parser.add_argument("--cash", dest="initial_cash", type=float, help="Starting cash in the stock currency")
+    parser.add_argument("--shares", type=int, help="Fixed whole-share buy quantity")
+    parser.add_argument("--commission-rate", type=float, help="Fraction of notional; 0.001 = 0.1%%")
+    parser.add_argument("--fixed-fee", type=float, help="Additional fee per fill")
+    parser.add_argument("--slippage-bps", type=float, help="Buy-price markup; 10 bps = 0.1%%")
     parser.add_argument("--output-dir", type=Path, help="Default: outputs/backtests/<CSV stem>_buy_hold")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
-        config = BacktestConfig(args.cash, args.shares, args.commission_rate, args.fixed_fee, args.slippage_bps)
-        stock = load_stock_csv(args.csv, market=args.market, interval=args.interval,
-                               adjustment=args.adjustment, naive_timezone=args.naive_timezone)
+        settings = load_strategy_config(args.config)
+        # Explicit CLI values override YAML, including valid zero-valued costs.
+        settings.update({key: value for key, value in vars(args).items()
+                         if key != "config" and value is not None})
+        config = BacktestConfig(**{field.name: settings[field.name]
+                                   for field in fields(BacktestConfig) if field.name in settings})
+        csv_path = settings["csv"]
+        stock = load_stock_csv(
+            csv_path, market=settings.get("market"), interval=settings.get("interval"),
+            adjustment=settings.get("adjustment"), naive_timezone=settings.get("naive_timezone"),
+        )
         result = run_buy_and_hold(stock, config)
-        destination = args.output_dir if args.output_dir is not None else BACKTEST_RESULTS_DIR / f"{args.csv.stem}_buy_hold"
+        destination = settings.get("output_dir")
+        if destination is None:
+            destination = BACKTEST_RESULTS_DIR / f"{csv_path.stem}_buy_hold"
         result.save(destination)
     except (OSError, ValueError) as exc:
         parser.exit(1, f"Could not run backtest: {exc}\n")
