@@ -1,0 +1,6 @@
+alpaca-py
+baostock
+pandas
+tzdata
+matplotlib
+numpy
